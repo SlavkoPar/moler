@@ -574,12 +574,16 @@ export default function CallsScreen() {
             {callDetails(call)}
           </ThemedText>
         )}
-        {call.comment !== '' && <ThemedText type="small">{call.comment}</ThemedText>}
-        {call.transcript !== '' && (
-          <ThemedText type="small" style={styles.transcript}>
-            “{call.transcript}”
+        <ThemedText type="small">
+          <ThemedText type="smallBold">Comments: </ThemedText>
+          {call.comment || '—'}
+        </ThemedText>
+        <ThemedText type="small">
+          <ThemedText type="smallBold">Transcript: </ThemedText>
+          <ThemedText type="small" style={call.transcript !== '' && styles.transcript}>
+            {call.transcript || '—'}
           </ThemedText>
-        )}
+        </ThemedText>
         {call.hasVoice && (
           <Pressable
             onPress={() => handlePlayVoice(call)}

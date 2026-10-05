@@ -7,6 +7,7 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   mp4: 'audio/mp4',
   aac: 'audio/aac',
   '3gp': 'audio/3gpp',
+  amr: 'audio/amr',
   caf: 'audio/x-caf',
   wav: 'audio/wav',
 };
@@ -15,6 +16,7 @@ const EXTENSION_BY_MIME: Record<string, string> = {
   'audio/mp4': 'm4a',
   'audio/aac': 'aac',
   'audio/3gpp': '3gp',
+  'audio/amr': 'amr',
   'audio/x-caf': 'caf',
   'audio/wav': 'wav',
   'audio/webm': 'webm',

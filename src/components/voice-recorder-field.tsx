@@ -15,6 +15,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { formatDuration } from '@/db/calls';
 import { showAlert } from '@/lib/alert';
+import { CLOUD_RECORDING_OPTIONS, transcribeRecording } from '@/lib/cloud-speech';
 import { getSpeechSupport, SPEECH_LANGUAGE, speechModule } from '@/lib/speech';
 import { canPlay } from '@/lib/voice-file';
 
@@ -49,7 +50,9 @@ function joinText(...parts: string[]) {
 export function VoiceRecorderField({ value, onChange, transcript, onTranscriptChange }: Props) {
   const [support] = useState(getSpeechSupport);
   const { mode } = support;
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorder = useAudioRecorder(
+    mode === 'cloud' ? CLOUD_RECORDING_OPTIONS : RecordingPresets.HIGH_QUALITY
+  );
   const recorderState = useAudioRecorderState(recorder, 250);
   const player = useAudioPlayer(null);
   const playerStatus = useAudioPlayerStatus(player);
@@ -57,6 +60,8 @@ export function VoiceRecorderField({ value, onChange, transcript, onTranscriptCh
   // "recognizing" is used in "recognizer" mode, where the speech recognizer does the recording
   const [recognizing, setRecognizing] = useState(false);
   const [dictating, setDictating] = useState(false);
+  // Used in "cloud" mode while Google Cloud Speech transcribes the finished recording
+  const [transcribing, setTranscribing] = useState(false);
   const [startedAt, setStartedAt] = useState(0);
   const [now, setNow] = useState(0);
   const [speechError, setSpeechError] = useState<string | null>(null);
@@ -68,9 +73,9 @@ export function VoiceRecorderField({ value, onChange, transcript, onTranscriptCh
   const textBeforeRef = useRef('');
   const finalTextRef = useRef('');
   const startedAtRef = useRef(0);
-  const callbacksRef = useRef({ onChange, onTranscriptChange });
+  const callbacksRef = useRef({ onChange, onTranscriptChange, transcript });
   useEffect(() => {
-    callbacksRef.current = { onChange, onTranscriptChange };
+    callbacksRef.current = { onChange, onTranscriptChange, transcript };
   });
 
   useEffect(() => {
@@ -110,7 +115,12 @@ export function VoiceRecorderField({ value, onChange, transcript, onTranscriptCh
         // Without continuous recognition (Android 12 and older) dictation stops after each
         // phrase, so it is restarted until the user taps Stop
         if (sessionRef.current === 'dictate' && keepDictatingRef.current) {
-          module.start({ lang: SPEECH_LANGUAGE, interimResults: true, addsPunctuation: true });
+          module.start({
+            lang: SPEECH_LANGUAGE,
+            interimResults: true,
+            addsPunctuation: true,
+            requiresOnDeviceRecognition: support.onDevice,
+          });
           return;
         }
         sessionRef.current = null;
@@ -123,7 +133,7 @@ export function VoiceRecorderField({ value, onChange, transcript, onTranscriptCh
       keepDictatingRef.current = false;
       module.abort();
     };
-  }, [mode, support.canDictate]);
+  }, [mode, support.canDictate, support.onDevice]);
 
   // Tick the timer while the recognizer records
   useEffect(() => {
@@ -152,6 +162,7 @@ export function VoiceRecorderField({ value, onChange, transcript, onTranscriptCh
       interimResults: true,
       continuous: support.supportsContinuous,
       addsPunctuation: true,
+      requiresOnDeviceRecognition: support.onDevice,
       recordingOptions: { persist: session === 'record' && mode === 'recognizer' },
     });
   };
@@ -218,7 +229,27 @@ export function VoiceRecorderField({ value, onChange, transcript, onTranscriptCh
       );
       return;
     }
-    onChange({ uri, durationMs: durationMs || null });
+    const recording = { uri, durationMs: durationMs || null };
+    onChange(recording);
+    if (mode === 'cloud') await transcribeInCloud(recording);
+  };
+
+  const transcribeInCloud = async (recording: RecordedVoice) => {
+    setSpeechError(null);
+    setTranscribing(true);
+    try {
+      const text = await transcribeRecording(recording.uri, recording.durationMs, SPEECH_LANGUAGE);
+      if (text) {
+        const { onTranscriptChange, transcript } = callbacksRef.current;
+        onTranscriptChange(joinText(transcript, text));
+      } else {
+        setSpeechError('no speech was recognized in the recording.');
+      }
+    } catch (error) {
+      setSpeechError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setTranscribing(false);
+    }
   };
 
   const handleDictate = async () => {
@@ -251,6 +282,11 @@ export function VoiceRecorderField({ value, onChange, transcript, onTranscriptCh
 
   const notes = (
     <>
+      {transcribing && (
+        <ThemedText type="small" themeColor="textSecondary">
+          Transcribing on the server…
+        </ThemedText>
+      )}
       {recordingError && (
         <ThemedText type="small" style={styles.recording}>
           {recordingError}
@@ -300,6 +336,14 @@ export function VoiceRecorderField({ value, onChange, transcript, onTranscriptCh
     );
   }
 
+  const transcribeButton = mode === 'cloud' && value && !transcribing && (
+    <Pressable onPress={() => transcribeInCloud(value)} style={({ pressed }) => pressed && styles.pressed}>
+      <ThemedView type="backgroundElement" style={styles.button}>
+        <ThemedText type="smallBold">Transcribe</ThemedText>
+      </ThemedView>
+    </Pressable>
+  );
+
   const dictateButton = support.canDictate && (
     <Pressable onPress={handleDictate} style={({ pressed }) => pressed && styles.pressed}>
       <ThemedView type="backgroundElement" style={styles.button}>
@@ -338,6 +382,7 @@ export function VoiceRecorderField({ value, onChange, transcript, onTranscriptCh
             </ThemedView>
           </Pressable>
         )}
+        {transcribeButton}
         {dictateButton}
       </ThemedView>
       {support.reason && (
