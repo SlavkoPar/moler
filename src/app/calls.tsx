@@ -1,7 +1,7 @@
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import * as Clipboard from 'expo-clipboard';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -41,6 +41,7 @@ import {
 } from '@/db/calls';
 import { useTheme } from '@/hooks/use-theme';
 import { confirmDestructive, showAlert } from '@/lib/alert';
+import { callDetails, capitalize, formatDateTime } from '@/lib/format';
 import { canPlay, readRecording, toPlayableUri } from '@/lib/voice-file';
 
 import {
@@ -54,28 +55,6 @@ import {
 type ListView = 'calls' | 'people';
 
 type ListRow = { kind: 'call'; call: PhoneCall } | { kind: 'person'; person: PersonSummary };
-
-function formatDateTime(date: Date) {
-  return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-}
-
-function capitalize(text: string) {
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-/** Short summary of the call log details, e.g. "Incoming · Mobile · 5:30 · Belgrade" */
-function callDetails(call: PhoneCall) {
-  return [
-    call.callType ? capitalize(call.callType) : '',
-    call.isVideo ? 'Video' : '',
-    call.numberLabel,
-    call.durationSeconds !== null ? formatDuration(call.durationSeconds) : '',
-    call.location,
-    call.countryIso,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-}
 
 async function loadData(db: ReturnType<typeof useSQLiteContext>) {
   const [calls, people] = await Promise.all([getCalls(db), getPeopleSummary(db)]);
@@ -157,17 +136,20 @@ export default function CallsScreen() {
     setPeople(data.people);
   }, [db]);
 
-  useEffect(() => {
-    let cancelled = false;
-    loadData(db).then((data) => {
-      if (cancelled) return;
-      setCalls(data.calls);
-      setPeople(data.people);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [db]);
+  // Reload whenever the tab is shown, so calls marked as exported on the Exports tab update here
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      loadData(db).then((data) => {
+        if (cancelled) return;
+        setCalls(data.calls);
+        setPeople(data.people);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [db])
+  );
 
   const pickDateTimeAndroid = () => {
     DateTimePickerAndroid.open({
@@ -562,6 +544,11 @@ export default function CallsScreen() {
             <ThemedText type="smallBold">{formatCents(call.priceCents)}</ThemedText>
           )}
         </ThemedView>
+        {call.exportId !== null && (
+          <ThemedText type="small" themeColor="textSecondary">
+            ✓ Exported (export #{call.exportId})
+          </ThemedText>
+        )}
         {showPerson && (
           <ThemedText type="small" themeColor="textSecondary">
             {[call.name ? call.phone : '', formatDateTime(new Date(call.calledAt))]

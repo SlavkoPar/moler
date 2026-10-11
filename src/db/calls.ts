@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 export const DATABASE_NAME = 'moler.db';
-const DATABASE_VERSION = 5;
+const DATABASE_VERSION = 6;
 
 export type Person = {
   id: number;
@@ -33,6 +33,8 @@ export type PhoneCall = {
   voiceDurationMs: number | null;
   /** Text recognized from the voice message, editable by the user */
   transcript: string;
+  /** The export this call was included in; null until it has been exported */
+  exportId: number | null;
 };
 
 export type VoiceMessage = {
@@ -42,7 +44,10 @@ export type VoiceMessage = {
   durationMs: number | null;
 };
 
-export type NewPhoneCall = Omit<PhoneCall, 'id' | 'personId' | 'hasVoice' | 'voiceDurationMs'> & {
+export type NewPhoneCall = Omit<
+  PhoneCall,
+  'id' | 'personId' | 'hasVoice' | 'voiceDurationMs' | 'exportId'
+> & {
   voice?: VoiceMessage | null;
 };
 
@@ -74,6 +79,7 @@ type PhoneCallRow = {
   has_voice: number;
   voice_duration_ms: number | null;
   transcript: string;
+  export_id: number | null;
 };
 
 type PersonSummaryRow = Person & {
@@ -190,6 +196,21 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
     currentDbVersion = 5;
   }
 
+  if (currentDbVersion === 5) {
+    // Each export keeps the XML it produced, so it can be shared again even after calls are deleted
+    await db.execAsync(`
+      CREATE TABLE exports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+        created_at TEXT NOT NULL,
+        call_count INTEGER NOT NULL,
+        xml TEXT NOT NULL
+      );
+      ALTER TABLE calls ADD COLUMN export_id INTEGER REFERENCES exports (id) ON DELETE SET NULL;
+      CREATE INDEX idx_calls_export_id ON calls (export_id);
+    `);
+    currentDbVersion = 6;
+  }
+
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
 }
 
@@ -261,10 +282,21 @@ function fromRow(row: PhoneCallRow): PhoneCall {
     hasVoice: row.has_voice === 1,
     voiceDurationMs: row.voice_duration_ms,
     transcript: row.transcript,
+    exportId: row.export_id,
   };
 }
 
-export async function getCalls(db: SQLiteDatabase): Promise<PhoneCall[]> {
+/**
+ * Calls, most recent first. `exportId` narrows the list: null for calls not exported yet,
+ * a number for the calls in that export; leave it out for all calls.
+ */
+export async function getCalls(
+  db: SQLiteDatabase,
+  { exportId }: { exportId?: number | null } = {}
+): Promise<PhoneCall[]> {
+  const where =
+    exportId === undefined ? '' : exportId === null ? 'WHERE calls.export_id IS NULL' : 'WHERE calls.export_id = ?';
+  const params = typeof exportId === 'number' ? [exportId] : [];
   const rows = await db.getAllAsync<PhoneCallRow>(
     `SELECT calls.*, people.phone, people.name, people.address,
        voice_messages.call_id IS NOT NULL AS has_voice,
@@ -272,7 +304,9 @@ export async function getCalls(db: SQLiteDatabase): Promise<PhoneCall[]> {
      FROM calls
      JOIN people ON people.id = calls.person_id
      LEFT JOIN voice_messages ON voice_messages.call_id = calls.id
-     ORDER BY calls.called_at DESC`
+     ${where}
+     ORDER BY calls.called_at DESC`,
+    params
   );
   return rows.map(fromRow);
 }
