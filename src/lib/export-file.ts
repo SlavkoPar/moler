@@ -2,11 +2,14 @@ import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 /**
- * Google Drive failed to upload shared files whose name contained "@", so names saved by older
- * versions (e.g. with an e-mail address) are made safe here too
+ * Google Drive failed to upload shared files whose name contained "@" or "_", so names saved by
+ * older versions are made safe here too
  */
 function safeFileName(fileName: string) {
-  return fileName.replace(/@/g, '_at_').replace(/[^A-Za-z0-9._-]+/g, '-');
+  return fileName
+    .replace(/@/g, '-at-')
+    .replace(/[^A-Za-z0-9.-]+/g, '-')
+    .replace(/-{2,}/g, '-');
 }
 
 /** Writes the XML to a cache file and opens the share sheet (save to Files, Drive, e-mail, ...) */
