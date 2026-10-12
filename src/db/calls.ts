@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 export const DATABASE_NAME = 'moler.db';
-const DATABASE_VERSION = 6;
+const DATABASE_VERSION = 7;
 
 export type Person = {
   id: number;
@@ -209,6 +209,20 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
       CREATE INDEX idx_calls_export_id ON calls (export_id);
     `);
     currentDbVersion = 6;
+  }
+
+  if (currentDbVersion === 6) {
+    // The file name is fixed when the export is made, so later name changes don't rename old exports
+    await db.execAsync(`
+      CREATE TABLE settings (
+        key TEXT PRIMARY KEY NOT NULL,
+        value TEXT NOT NULL
+      );
+      ALTER TABLE exports ADD COLUMN exported_by TEXT NOT NULL DEFAULT '';
+      ALTER TABLE exports ADD COLUMN file_name TEXT NOT NULL DEFAULT '';
+      UPDATE exports SET file_name = 'moler-calls-' || id || '.xml';
+    `);
+    currentDbVersion = 7;
   }
 
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);

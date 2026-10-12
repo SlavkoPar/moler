@@ -9,7 +9,7 @@ import { Collapsible } from '@/components/ui/collapsible';
 import { formatVoiceDuration } from '@/components/voice-recorder-field';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { displayName, formatCents, getCalls, type PhoneCall } from '@/db/calls';
-import { exportFileName, getExport, getExportXml, type CallExport } from '@/db/exports';
+import { getExport, getExportXml, type CallExport } from '@/db/exports';
 import { showAlert } from '@/lib/alert';
 import { shareXmlFile } from '@/lib/export-file';
 import { callDetails, formatDateTime } from '@/lib/format';
@@ -43,7 +43,7 @@ export default function ExportScreen() {
   const handleShare = async () => {
     if (!details) return;
     try {
-      await shareXmlFile(exportFileName(details.callExport), details.xml);
+      await shareXmlFile(details.callExport.fileName, details.xml);
     } catch (error) {
       showAlert('Could not share the export', error instanceof Error ? error.message : String(error));
     }
@@ -82,10 +82,13 @@ export default function ExportScreen() {
             <ThemedText type="smallBold">Export #{callExport.id}</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               {formatDateTime(new Date(callExport.createdAt))}
+              {callExport.exportedBy !== '' && ` · ${callExport.exportedBy}`}
             </ThemedText>
             <ThemedText type="small">
-              {callExport.callCount} {callExport.callCount === 1 ? 'call' : 'calls'} ·{' '}
-              {exportFileName(callExport)}
+              {callExport.callCount} {callExport.callCount === 1 ? 'call' : 'calls'}
+            </ThemedText>
+            <ThemedText type="small" selectable>
+              {callExport.fileName}
             </ThemedText>
           </ThemedView>
 

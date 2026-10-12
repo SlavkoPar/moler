@@ -7,29 +7,43 @@ export type CallExport = {
   /** ISO 8601 timestamp of when the export was made */
   createdAt: string;
   callCount: number;
+  /** Who made the export (name or e-mail from the Exports tab, or the device name); may be empty */
+  exportedBy: string;
+  /** File name chosen when the export was made, e.g. moler-calls-ana@example.com-2026-10-12_14-35.xml */
+  fileName: string;
 };
 
 type CallExportRow = {
   id: number;
   created_at: string;
   call_count: number;
+  exported_by: string;
+  file_name: string;
 };
 
+const EXPORT_COLUMNS = 'id, created_at, call_count, exported_by, file_name';
+
 function fromRow(row: CallExportRow): CallExport {
-  return { id: row.id, createdAt: row.created_at, callCount: row.call_count };
+  return {
+    id: row.id,
+    createdAt: row.created_at,
+    callCount: row.call_count,
+    exportedBy: row.exported_by,
+    fileName: row.file_name,
+  };
 }
 
 /** Exports, newest first */
 export async function getExports(db: SQLiteDatabase): Promise<CallExport[]> {
   const rows = await db.getAllAsync<CallExportRow>(
-    'SELECT id, created_at, call_count FROM exports ORDER BY id DESC'
+    `SELECT ${EXPORT_COLUMNS} FROM exports ORDER BY id DESC`
   );
   return rows.map(fromRow);
 }
 
 export async function getExport(db: SQLiteDatabase, id: number): Promise<CallExport | null> {
   const row = await db.getFirstAsync<CallExportRow>(
-    'SELECT id, created_at, call_count FROM exports WHERE id = ?',
+    `SELECT ${EXPORT_COLUMNS} FROM exports WHERE id = ?`,
     id
   );
   return row && fromRow(row);
@@ -52,30 +66,31 @@ export async function countUnexportedCalls(db: SQLiteDatabase): Promise<number> 
  * Puts every call that hasn't been exported yet into a new export and marks those calls as exported.
  * Returns null when there is nothing new to export.
  */
-export async function createExport(db: SQLiteDatabase): Promise<CallExport | null> {
+export async function createExport(db: SQLiteDatabase, exportedBy: string): Promise<CallExport | null> {
   let created: CallExport | null = null;
   await db.withTransactionAsync(async () => {
     const calls = await getCalls(db, { exportId: null });
     if (calls.length === 0) return;
 
-    const createdAt = new Date().toISOString();
+    const now = new Date();
+    const createdAt = now.toISOString();
+    const fileName = buildFileName(exportedBy, now);
     const { lastInsertRowId: id } = await db.runAsync(
-      "INSERT INTO exports (created_at, call_count, xml) VALUES (?, ?, '')",
+      "INSERT INTO exports (created_at, call_count, exported_by, file_name, xml) VALUES (?, ?, ?, ?, '')",
       createdAt,
-      calls.length
+      calls.length,
+      exportedBy,
+      fileName
     );
-    await db.runAsync(
-      'UPDATE exports SET xml = ? WHERE id = ?',
-      buildExportXml({ id, createdAt, callCount: calls.length }, calls),
-      id
-    );
+    const callExport = { id, createdAt, callCount: calls.length, exportedBy, fileName };
+    await db.runAsync('UPDATE exports SET xml = ? WHERE id = ?', buildExportXml(callExport, calls), id);
     // Mark exactly the calls that went into the document, not ones added meanwhile
     await db.runAsync(
       `UPDATE calls SET export_id = ? WHERE id IN (${calls.map(() => '?').join(', ')})`,
       id,
       ...calls.map((call) => call.id)
     );
-    created = { id, createdAt, callCount: calls.length };
+    created = callExport;
   });
   return created;
 }
@@ -118,13 +133,40 @@ export function buildExportXml(callExport: CallExport, calls: PhoneCall[]) {
   );
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    `<calls export="${callExport.id}" exportedAt="${callExport.createdAt}" count="${callExport.callCount}">`,
+    `<calls export="${callExport.id}" exportedAt="${callExport.createdAt}" exportedBy="${escapeXml(callExport.exportedBy)}" count="${callExport.callCount}">`,
     ...callElements,
     '</calls>',
     '',
   ].join('\n');
 }
 
-export function exportFileName(callExport: CallExport) {
-  return `moler-calls-${callExport.id}.xml`;
+/** Serbian letters that don't reduce to plain ASCII by dropping accents, Cyrillic included */
+const SERBIAN_TO_ASCII: Record<string, string> = {
+  Đ: 'Dj', đ: 'dj', Ђ: 'Dj', ђ: 'dj', Љ: 'Lj', љ: 'lj', Њ: 'Nj', њ: 'nj', Џ: 'Dz', џ: 'dz',
+  Ћ: 'C', ћ: 'c', Ч: 'C', ч: 'c', Ш: 'S', ш: 's', Ж: 'Z', ж: 'z', Ј: 'J', ј: 'j',
+  А: 'A', а: 'a', Б: 'B', б: 'b', В: 'V', в: 'v', Г: 'G', г: 'g', Д: 'D', д: 'd',
+  Е: 'E', е: 'e', З: 'Z', з: 'z', И: 'I', и: 'i', К: 'K', к: 'k', Л: 'L', л: 'l',
+  М: 'M', м: 'm', Н: 'N', н: 'n', О: 'O', о: 'o', П: 'P', п: 'p', Р: 'R', р: 'r',
+  С: 'S', с: 's', Т: 'T', т: 't', У: 'U', у: 'u', Ф: 'F', ф: 'f', Х: 'H', х: 'h',
+  Ц: 'C', ц: 'c',
+};
+
+/** Keeps letters, digits and the characters of an e-mail address; anything else becomes "-" */
+function fileNamePart(value: string) {
+  return Array.from(value, (char) => SERBIAN_TO_ASCII[char] ?? char)
+    .join('')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9@._+-]+/g, '-')
+    .replace(/^[-.]+|[-.]+$/g, '');
+}
+
+/** moler-calls-{name or e-mail}-{local date and time}.xml, e.g. moler-calls-ana@example.com-2026-10-12_14-35.xml */
+export function buildFileName(exportedBy: string, date: Date) {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const stamp =
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `_${pad(date.getHours())}-${pad(date.getMinutes())}`;
+  const who = fileNamePart(exportedBy);
+  return who ? `moler-calls-${who}-${stamp}.xml` : `moler-calls-${stamp}.xml`;
 }

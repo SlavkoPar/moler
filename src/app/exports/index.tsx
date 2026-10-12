@@ -1,35 +1,60 @@
+import * as Device from 'expo-device';
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
-import { FlatList, Platform, Pressable, StyleSheet } from 'react-native';
+import { FlatList, Platform, Pressable, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import {
+  buildFileName,
   countUnexportedCalls,
   createExport,
-  exportFileName,
   getExports,
   getExportXml,
   type CallExport,
 } from '@/db/exports';
+import { getSetting, setSetting } from '@/db/settings';
+import { useTheme } from '@/hooks/use-theme';
 import { showAlert } from '@/lib/alert';
 import { shareXmlFile } from '@/lib/export-file';
 import { formatDateTime } from '@/lib/format';
 
+/** Used in the file name when no name or e-mail has been entered, e.g. "HUAWEI Y70" */
+const DEVICE_NAME = Device.deviceName ?? '';
+
 export default function ExportsScreen() {
   const db = useSQLiteContext();
+  const theme = useTheme();
   const [exports, setExports] = useState<CallExport[]>([]);
   const [unexportedCount, setUnexportedCount] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [exporterName, setExporterName] = useState('');
+  // The saved name is loaded once; after that the text field is the source of truth
+  const [nameLoaded, setNameLoaded] = useState(false);
 
   const reload = useCallback(async () => {
-    const [list, count] = await Promise.all([getExports(db), countUnexportedCalls(db)]);
+    const [list, count, savedName] = await Promise.all([
+      getExports(db),
+      countUnexportedCalls(db),
+      getSetting(db, 'exporterName'),
+    ]);
     setExports(list);
     setUnexportedCount(count);
-  }, [db]);
+    if (!nameLoaded) {
+      setExporterName(savedName);
+      setNameLoaded(true);
+    }
+  }, [db, nameLoaded]);
+
+  const handleNameChange = (value: string) => {
+    setExporterName(value);
+    setSetting(db, 'exporterName', value.trim());
+  };
+
+  const exportedBy = exporterName.trim() || DEVICE_NAME;
 
   // Reload whenever the tab is shown, so calls saved on the Calls tab are counted
   useFocusEffect(
@@ -42,7 +67,7 @@ export default function ExportsScreen() {
     const xml = await getExportXml(db, callExport.id);
     if (xml === null) return;
     try {
-      await shareXmlFile(exportFileName(callExport), xml);
+      await shareXmlFile(callExport.fileName, xml);
     } catch (error) {
       showAlert('Could not share the export', error instanceof Error ? error.message : String(error));
     }
@@ -51,7 +76,7 @@ export default function ExportsScreen() {
   const handleExport = async () => {
     setBusy(true);
     try {
-      const created = await createExport(db);
+      const created = await createExport(db, exportedBy);
       await reload();
       if (created) await share(created);
     } catch (error) {
@@ -67,6 +92,20 @@ export default function ExportsScreen() {
       <ThemedText themeColor="textSecondary">
         Each export saves the calls that haven&apos;t been exported yet as an XML file and marks
         them as exported.
+      </ThemedText>
+      <ThemedText type="smallBold">Your name or e-mail</ThemedText>
+      <TextInput
+        style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundElement }]}
+        value={exporterName}
+        onChangeText={handleNameChange}
+        placeholder={DEVICE_NAME ? `e.g. ana@example.com (empty: ${DEVICE_NAME})` : 'e.g. ana@example.com'}
+        placeholderTextColor={theme.textSecondary}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="email-address"
+      />
+      <ThemedText type="small" themeColor="textSecondary">
+        File name: {buildFileName(exportedBy, new Date())}
       </ThemedText>
       <Pressable
         onPress={handleExport}
@@ -119,7 +158,11 @@ export default function ExportsScreen() {
                   </ThemedText>
                 </ThemedView>
                 <ThemedText type="small" themeColor="textSecondary">
-                  {formatDateTime(new Date(item.createdAt))} · {exportFileName(item)}
+                  {formatDateTime(new Date(item.createdAt))}
+                  {item.exportedBy !== '' && ` · ${item.exportedBy}`}
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {item.fileName}
                 </ThemedText>
               </ThemedView>
             </Pressable>
@@ -152,6 +195,13 @@ const styles = StyleSheet.create({
   },
   header: {
     gap: Spacing.two,
+  },
+  input: {
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    borderRadius: Spacing.three,
+    fontSize: 16,
+    minHeight: 44,
   },
   button: {
     alignItems: 'center',
