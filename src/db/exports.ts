@@ -9,7 +9,7 @@ export type CallExport = {
   callCount: number;
   /** Who made the export (name or e-mail from the Exports tab, or the device name); may be empty */
   exportedBy: string;
-  /** File name chosen when the export was made, e.g. moler-calls-ana@example.com-2026-10-12_14-35.xml */
+  /** File name chosen when the export was made, e.g. moler-calls-ana_at_example.com-2026-10-12_14-35.xml */
   fileName: string;
 };
 
@@ -151,17 +151,19 @@ const SERBIAN_TO_ASCII: Record<string, string> = {
   Ц: 'C', ц: 'c',
 };
 
-/** Keeps letters, digits and the characters of an e-mail address; anything else becomes "-" */
+/** Keeps letters, digits, ".", "_" and "-"; an e-mail's "@" becomes "_at_", anything else "-" */
 function fileNamePart(value: string) {
   return Array.from(value, (char) => SERBIAN_TO_ASCII[char] ?? char)
     .join('')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^A-Za-z0-9@._+-]+/g, '-')
-    .replace(/^[-.]+|[-.]+$/g, '');
+    // Only characters every app accepts in a file name: Google Drive failed to upload names with "@"
+    .replace(/@/g, '_at_')
+    .replace(/[^A-Za-z0-9._-]+/g, '-')
+    .replace(/^[-._]+|[-._]+$/g, '');
 }
 
-/** moler-calls-{name or e-mail}-{local date and time}.xml, e.g. moler-calls-ana@example.com-2026-10-12_14-35.xml */
+/** moler-calls-{name or e-mail}-{local date and time}.xml, e.g. moler-calls-ana_at_example.com-2026-10-12_14-35.xml */
 export function buildFileName(exportedBy: string, date: Date) {
   const pad = (n: number) => String(n).padStart(2, '0');
   const stamp =
