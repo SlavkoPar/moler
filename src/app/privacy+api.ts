@@ -5,7 +5,7 @@
  */
 
 const CONTACT_EMAIL = 'slavko.parezanin@gmail.com';
-const LAST_UPDATED = '2026-10-11';
+const LAST_UPDATED = '2026-10-13';
 
 const html = `<!doctype html>
 <html lang="sr">
@@ -50,10 +50,10 @@ const html = `<!doctype html>
 <p>Ako dozvolite pristup evidenciji poziva, aplikacija čita samo poslednji poziv, i to tek kada dodirnete „Use last call“, da bi popunila broj, vreme i trajanje. Ti podaci ostaju na telefonu i ne šalju se nikuda.</p>
 
 <h2>Izvoz u XML</h2>
-<p>Kada izvezete pozive, aplikacija napravi XML fajl i otvori deljenje. Fajl ide samo tamo gde ga vi pošaljete ili sačuvate. Glasovne poruke se ne izvoze, samo njihova dužina.</p>
+<p>Kada izvezete pozive, aplikacija napravi XML fajl, sačuva kopiju u folderu Download/moler na telefonu i otvori deljenje. Fajl ide samo tamo gde ga vi pošaljete ili sačuvate. Glasovne poruke se ne izvoze, samo njihova dužina.</p>
 
 <h2>Brisanje podataka</h2>
-<p>Poziv brišete dugim pritiskom na njega. Sve podatke brišete deinstaliranjem aplikacije ili preko Podešavanja → Aplikacije → moler → Memorija → Obriši podatke.</p>
+<p>Poziv brišete dugim pritiskom na njega. Sve podatke brišete deinstaliranjem aplikacije ili preko Podešavanja → Aplikacije → moler → Memorija → Obriši podatke. Izvezene XML fajlove iz foldera Download/moler brišete u aplikaciji Datoteke.</p>
 
 <h2>Deca</h2>
 <p>Aplikacija nije namenjena deci mlađoj od 13 godina.</p>
@@ -84,10 +84,10 @@ const html = `<!doctype html>
 <p>If you allow call log access, the app reads only the most recent call, and only when you tap "Use last call", to fill in its number, time and duration. That data stays on your phone and is not sent anywhere.</p>
 
 <h2>XML export</h2>
-<p>When you export calls, the app creates an XML file and opens the share sheet. The file goes only where you send or save it. Voice messages are not exported, only their length.</p>
+<p>When you export calls, the app creates an XML file, keeps a copy in the Download/moler folder on your phone and opens the share sheet. The file goes only where you send or save it. Voice messages are not exported, only their length.</p>
 
 <h2>Deleting data</h2>
-<p>Delete a call by long-pressing it. Delete all data by uninstalling the app, or via Settings → Apps → moler → Storage → Clear data.</p>
+<p>Delete a call by long-pressing it. Delete all data by uninstalling the app, or via Settings → Apps → moler → Storage → Clear data. Exported XML files in Download/moler are deleted in the Files app.</p>
 
 <h2>Children</h2>
 <p>The app is not directed at children under 13.</p>

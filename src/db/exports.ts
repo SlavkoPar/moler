@@ -157,7 +157,7 @@ function fileNamePart(value: string) {
     .join('')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    // Only letters, digits, "." and "-": Google Drive failed to upload names with "@" or "_"
+    // Only letters, digits, "." and "-", which every app accepts in a file name
     .replace(/@/g, '-at-')
     .replace(/[^A-Za-z0-9.-]+/g, '-')
     .replace(/-{2,}/g, '-')

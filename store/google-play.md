@@ -41,7 +41,7 @@ Privacy policy URL: **https://moler.expo.app/privacy**
 >
 > Pregled po pozivima ili po osobama: broj poziva, ukupna cena i trajanje razgovora za svakog klijenta.
 >
-> Izvoz u XML: jednim dodirom izvezite sve nove pozive i pošaljite fajl mejlom, sačuvajte ga na Drive ili u Fajlove. Izvezeni pozivi se označe, tako da sledeći izvoz sadrži samo nove. Svaki raniji izvoz možete ponovo otvoriti i podeliti.
+> Izvoz u XML: jednim dodirom izvezite sve nove pozive i pošaljite fajl mejlom ili sačuvajte na Drive; kopija ostaje i u folderu Download/moler. Izvezeni pozivi se označe, tako da sledeći izvoz sadrži samo nove. Svaki raniji izvoz možete ponovo otvoriti i podeliti.
 >
 > Privatnost: svi podaci ostaju na vašem telefonu. Nema naloga, reklama ni analitike. Glasovna poruka se šalje na pretvaranje u tekst samo kada telefon nema sopstveni servis za prepoznavanje govora.
 
@@ -63,7 +63,7 @@ Privacy policy URL: **https://moler.expo.app/privacy**
 >
 > View by call or by person: number of calls, total price and talk time for each client.
 >
-> XML export: export all new calls with one tap and e-mail the file, save it to Drive or Files. Exported calls are marked, so the next export contains only new ones. Any earlier export can be opened and shared again.
+> XML export: export all new calls with one tap and e-mail the file or save it to Drive; a copy is also kept in the Download/moler folder. Exported calls are marked, so the next export contains only new ones. Any earlier export can be opened and shared again.
 >
 > Privacy: all data stays on your phone. No accounts, ads or analytics. A voice message is sent for transcription only when the phone has no speech recognition service of its own.
 
