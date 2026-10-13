@@ -9,7 +9,9 @@ export function capitalize(text: string) {
 }
 
 /** Short summary of the call log details, e.g. "Incoming · Mobile · 5:30 · Belgrade" */
-export function callDetails(call: PhoneCall) {
+export function callDetails(
+  call: Pick<PhoneCall, 'callType' | 'isVideo' | 'numberLabel' | 'durationSeconds' | 'location' | 'countryIso'>
+) {
   return [
     call.callType ? capitalize(call.callType) : '',
     call.isVideo ? 'Video' : '',

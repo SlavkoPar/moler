@@ -1,14 +1,10 @@
 import { RecordingPresets, type RecordingOptions } from 'expo-audio';
 import { File } from 'expo-file-system';
 
-/**
- * The moler server (EAS Hosting) that turns recordings into text with Google Cloud Speech.
- * Both values are inlined at build time from .env.local; the Google key itself stays on the server.
- */
-const SERVER_URL = (process.env.EXPO_PUBLIC_SPEECH_SERVER_URL ?? '').replace(/\/+$/, '');
-const SERVER_TOKEN = process.env.EXPO_PUBLIC_SPEECH_SERVER_TOKEN ?? '';
+import { callServer, isServerConfigured } from '@/lib/moler-server';
 
-export const isCloudSpeechConfigured = SERVER_URL !== '' && SERVER_TOKEN !== '';
+/** The moler server turns recordings into text with Google Cloud Speech */
+export const isCloudSpeechConfigured = isServerConfigured;
 
 /**
  * Records AMR-WB at 16 kHz on Android: Google Cloud Speech reads it directly,
@@ -35,17 +31,9 @@ export async function transcribeRecording(
   languageCode: string
 ): Promise<string> {
   const audio = await new File(uri).base64();
-  const response = await fetch(`${SERVER_URL}/api/transcribe`, {
+  const { text } = await callServer<{ text?: string }>('/api/transcribe', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${SERVER_TOKEN}`,
-    },
-    body: JSON.stringify({ audio, durationMs, languageCode }),
+    body: { audio, durationMs, languageCode },
   });
-  const body: { text?: string; error?: string } = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(body.error ?? `The speech server returned HTTP ${response.status}`);
-  }
-  return body.text ?? '';
+  return text ?? '';
 }

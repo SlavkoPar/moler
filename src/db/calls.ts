@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 export const DATABASE_NAME = 'moler.db';
-const DATABASE_VERSION = 7;
+const DATABASE_VERSION = 8;
 
 export type Person = {
   id: number;
@@ -223,6 +223,43 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
       UPDATE exports SET file_name = 'moler-calls-' || id || '.xml';
     `);
     currentDbVersion = 7;
+  }
+
+  if (currentDbVersion === 7) {
+    // Calls read from other people's export files; kept apart from the user's own calls.
+    // A file is identified by its export number, time and exporter, so it is imported only once.
+    await db.execAsync(`
+      CREATE TABLE imported_files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+        file_name TEXT NOT NULL,
+        export_id INTEGER,
+        exported_at TEXT NOT NULL,
+        exported_by TEXT NOT NULL,
+        imported_at TEXT NOT NULL,
+        UNIQUE (export_id, exported_at, exported_by)
+      );
+      CREATE TABLE imported_calls (
+        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+        file_id INTEGER NOT NULL REFERENCES imported_files (id) ON DELETE CASCADE,
+        source_call_id INTEGER,
+        called_at TEXT NOT NULL,
+        phone TEXT NOT NULL DEFAULT '',
+        name TEXT NOT NULL DEFAULT '',
+        address TEXT NOT NULL DEFAULT '',
+        comment TEXT NOT NULL DEFAULT '',
+        price_cents INTEGER,
+        call_type TEXT,
+        duration_seconds INTEGER,
+        location TEXT NOT NULL DEFAULT '',
+        number_label TEXT NOT NULL DEFAULT '',
+        country_iso TEXT NOT NULL DEFAULT '',
+        is_video INTEGER NOT NULL DEFAULT 0,
+        voice_message_ms INTEGER,
+        transcript TEXT NOT NULL DEFAULT ''
+      );
+      CREATE INDEX idx_imported_calls_called_at ON imported_calls (called_at);
+    `);
+    currentDbVersion = 8;
   }
 
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);

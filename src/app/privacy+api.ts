@@ -52,6 +52,10 @@ const html = `<!doctype html>
 <h2>Izvoz u XML</h2>
 <p>Kada izvezete pozive, aplikacija napravi XML fajl, sačuva kopiju u folderu Download/moler na telefonu i otvori deljenje. Fajl ide samo tamo gde ga vi pošaljete ili sačuvate. Glasovne poruke se ne izvoze, samo njihova dužina.</p>
 
+<h2>Uvoz</h2>
+<p>Na kartici Imports možete izabrati folder sa izvezenim fajlovima (npr. od kolega). Aplikacija čita samo fajlove čije ime počinje sa „moler-calls“ iz foldera koji vi izaberete i čuva pozive iz njih u lokalnoj bazi na telefonu, odvojeno od vaših poziva.</p>
+<p>Za uvoz iz Google Drive foldera, folder delite (samo za čitanje) sa servisnim nalogom aplikacije. Naš server (moler.expo.app) tada preuzima fajlove „moler-calls…“ iz tog foldera i prosleđuje ih vašem telefonu; server ih ne čuva. Server može da čita samo foldere koje ste sami podelili sa tim nalogom.</p>
+
 <h2>Brisanje podataka</h2>
 <p>Poziv brišete dugim pritiskom na njega. Sve podatke brišete deinstaliranjem aplikacije ili preko Podešavanja → Aplikacije → moler → Memorija → Obriši podatke. Izvezene XML fajlove iz foldera Download/moler brišete u aplikaciji Datoteke.</p>
 
@@ -85,6 +89,10 @@ const html = `<!doctype html>
 
 <h2>XML export</h2>
 <p>When you export calls, the app creates an XML file, keeps a copy in the Download/moler folder on your phone and opens the share sheet. The file goes only where you send or save it. Voice messages are not exported, only their length.</p>
+
+<h2>Import</h2>
+<p>On the Imports tab you can choose a folder with exported files (e.g. from colleagues). The app reads only files whose name starts with "moler-calls" from the folder you choose and stores their calls in the local database on your phone, separate from your own calls.</p>
+<p>To import from a Google Drive folder, you share the folder (view only) with the app's service account. Our server (moler.expo.app) then downloads the "moler-calls…" files from that folder and passes them to your phone; the server does not store them. The server can only read folders you have shared with that account yourself.</p>
 
 <h2>Deleting data</h2>
 <p>Delete a call by long-pressing it. Delete all data by uninstalling the app, or via Settings → Apps → moler → Storage → Clear data. Exported XML files in Download/moler are deleted in the Files app.</p>
