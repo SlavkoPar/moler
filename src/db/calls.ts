@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 export const DATABASE_NAME = 'moler.db';
-const DATABASE_VERSION = 8;
+const DATABASE_VERSION = 9;
 
 export type Person = {
   id: number;
@@ -260,6 +260,49 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
       CREATE INDEX idx_imported_calls_called_at ON imported_calls (called_at);
     `);
     currentDbVersion = 8;
+  }
+
+  if (currentDbVersion === 8) {
+    // Files are no longer remembered as imported, so a folder can be imported again for other days.
+    // Instead each call is unique by exporter, its id in their app and time, so it is never doubled.
+    await db.withTransactionAsync(async () => {
+      await db.execAsync(`
+        CREATE TABLE imported_calls_v2 (
+          id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+          exported_by TEXT NOT NULL DEFAULT '',
+          file_name TEXT NOT NULL DEFAULT '',
+          source_call_id INTEGER,
+          called_at TEXT NOT NULL,
+          phone TEXT NOT NULL DEFAULT '',
+          name TEXT NOT NULL DEFAULT '',
+          address TEXT NOT NULL DEFAULT '',
+          comment TEXT NOT NULL DEFAULT '',
+          price_cents INTEGER,
+          call_type TEXT,
+          duration_seconds INTEGER,
+          location TEXT NOT NULL DEFAULT '',
+          number_label TEXT NOT NULL DEFAULT '',
+          country_iso TEXT NOT NULL DEFAULT '',
+          is_video INTEGER NOT NULL DEFAULT 0,
+          voice_message_ms INTEGER,
+          transcript TEXT NOT NULL DEFAULT ''
+        );
+        INSERT OR IGNORE INTO imported_calls_v2 (exported_by, file_name, source_call_id, called_at, phone, name,
+          address, comment, price_cents, call_type, duration_seconds, location, number_label, country_iso,
+          is_video, voice_message_ms, transcript)
+        SELECT imported_files.exported_by, imported_files.file_name, source_call_id, called_at, phone, name,
+          address, comment, price_cents, call_type, duration_seconds, location, number_label, country_iso,
+          is_video, voice_message_ms, transcript
+        FROM imported_calls JOIN imported_files ON imported_files.id = imported_calls.file_id;
+        DROP TABLE imported_calls;
+        DROP TABLE imported_files;
+        ALTER TABLE imported_calls_v2 RENAME TO imported_calls;
+        CREATE UNIQUE INDEX idx_imported_calls_identity
+          ON imported_calls (exported_by, IFNULL(source_call_id, -1), called_at);
+        CREATE INDEX idx_imported_calls_called_at ON imported_calls (called_at);
+      `);
+    });
+    currentDbVersion = 9;
   }
 
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);

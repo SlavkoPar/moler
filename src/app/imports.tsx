@@ -11,7 +11,7 @@ import { formatVoiceDuration } from '@/components/voice-recorder-field';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { formatCents } from '@/db/calls';
 import {
-  countImportedFiles,
+  countImportedCalls,
   EXPORT_FILE_PREFIX,
   getImportedCalls,
   importExportFiles,
@@ -94,13 +94,16 @@ function totalLabel(count: number, totalCents: number) {
   return totalCents > 0 ? `${countLabel(count)} · ${formatCents(totalCents)}` : countLabel(count);
 }
 
-function resultMessage(result: ImportResult, folderName: string, found: number) {
+function resultMessage(result: ImportResult, folderName: string, found: number, rangeSelected: boolean) {
   if (found === 0) return `No ${EXPORT_FILE_PREFIX}… files found in ${folderName}.`;
   const parts = [
-    `Imported ${result.importedFiles} ${result.importedFiles === 1 ? 'file' : 'files'} (${countLabel(result.importedCalls)}) from ${folderName}.`,
+    `Read ${result.readFiles} ${result.readFiles === 1 ? 'file' : 'files'} from ${folderName}: ${result.importedCalls} new ${result.importedCalls === 1 ? 'call' : 'calls'} imported.`,
   ];
-  if (result.skippedFiles > 0) {
-    parts.push(`${result.skippedFiles} already imported before.`);
+  if (result.duplicateCalls > 0) {
+    parts.push(`${countLabel(result.duplicateCalls)} already in the list.`);
+  }
+  if (rangeSelected && result.skippedCalls > 0) {
+    parts.push(`${countLabel(result.skippedCalls)} outside the selected days.`);
   }
   if (result.failedFiles.length > 0) {
     parts.push(`Not moler exports: ${result.failedFiles.join(', ')}.`);
@@ -112,7 +115,7 @@ export default function ImportsScreen() {
   const db = useSQLiteContext();
   const theme = useTheme();
   const [calls, setCalls] = useState<ImportedCall[]>([]);
-  const [fileCount, setFileCount] = useState(0);
+  const [importedCount, setImportedCount] = useState(0);
   const [from, setFrom] = useState<Date | null>(null);
   const [to, setTo] = useState<Date | null>(null);
   const [folderUri, setFolderUri] = useState('');
@@ -126,12 +129,12 @@ export default function ImportsScreen() {
   const reload = useCallback(async () => {
     const [list, files, savedFolder, savedDriveLink] = await Promise.all([
       getImportedCalls(db, { from, to }),
-      countImportedFiles(db),
+      countImportedCalls(db),
       getSetting(db, 'importFolderUri'),
       getSetting(db, 'driveFolderLink'),
     ]);
     setCalls(list);
-    setFileCount(files);
+    setImportedCount(files);
     setFolderUri(savedFolder);
     if (!driveLinkLoaded) {
       setDriveLink(savedDriveLink);
@@ -160,9 +163,9 @@ export default function ImportsScreen() {
     try {
       const picked = await pick();
       if (!picked) return;
-      const result = await importExportFiles(db, picked.files);
+      const result = await importExportFiles(db, picked.files, { from, to });
       if (rememberFolder) await setSetting(db, 'importFolderUri', picked.folderUri);
-      setMessage(resultMessage(result, picked.folderName, picked.files.length));
+      setMessage(resultMessage(result, picked.folderName, picked.files.length, from !== null || to !== null));
       await reload();
     } catch (error) {
       showAlert('Import failed', error instanceof Error ? error.message : String(error));
@@ -198,8 +201,17 @@ export default function ImportsScreen() {
     <ThemedView style={styles.header}>
       <ThemedText type="subtitle">Imports</ThemedText>
       <ThemedText themeColor="textSecondary">
-        Choose a folder with exported files. Every file whose name starts with
-        &quot;{EXPORT_FILE_PREFIX}&quot; is imported; files imported before are skipped.
+        Choose a folder with exported files. The calls of every file whose name starts with
+        &quot;{EXPORT_FILE_PREFIX}&quot; are imported, only from the selected days if you set them.
+        Calls already in the list are skipped, so a folder can be imported again any time.
+      </ThemedText>
+
+      <ThemedView style={styles.filters}>
+        <DateField label="From" value={from} onChange={setFrom} />
+        <DateField label="To" value={to} onChange={setTo} />
+      </ThemedView>
+      <ThemedText type="small" themeColor="textSecondary">
+        {from || to ? 'Imports and shows only the selected days.' : 'No days selected: imports and shows all calls.'}
       </ThemedText>
 
       <Pressable
@@ -247,15 +259,12 @@ export default function ImportsScreen() {
       )}
       {message && <ThemedText type="small">{message}</ThemedText>}
 
-      <ThemedView style={styles.filters}>
-        <DateField label="From" value={from} onChange={setFrom} />
-        <DateField label="To" value={to} onChange={setTo} />
-      </ThemedView>
-
-      <ThemedText type="small" themeColor="textSecondary">
-        {fileCount === 0
+      <ThemedText type="small" themeColor="textSecondary" style={styles.summary}>
+        {importedCount === 0
           ? 'Nothing imported yet.'
-          : `${totalLabel(calls.length, totalCents)}${from || to ? ' in the selected days' : ''} · ${fileCount} ${fileCount === 1 ? 'file' : 'files'} imported`}
+          : from || to
+            ? `${totalLabel(calls.length, totalCents)} in the selected days · ${countLabel(importedCount)} imported in total`
+            : totalLabel(calls.length, totalCents)}
       </ThemedText>
     </ThemedView>
   );
@@ -332,7 +341,7 @@ export default function ImportsScreen() {
           keyExtractor={(row) => row.key}
           ListHeaderComponent={header}
           ListEmptyComponent={
-            fileCount > 0 ? (
+            importedCount > 0 ? (
               <ThemedText themeColor="textSecondary">No imported calls in the selected days.</ThemedText>
             ) : null
           }
@@ -387,6 +396,9 @@ const styles = StyleSheet.create({
   filters: {
     flexDirection: 'row',
     gap: Spacing.two,
+    marginTop: Spacing.two,
+  },
+  summary: {
     marginTop: Spacing.two,
   },
   dayHeader: {

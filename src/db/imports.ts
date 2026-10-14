@@ -41,14 +41,33 @@ type ParsedExport = {
 /** A file picked for import: its name and contents */
 export type ExportFile = { name: string; text: string };
 
+/** Days to import or show; null means no limit on that side */
+export type DayRange = { from: Date | null; to: Date | null };
+
 export type ImportResult = {
-  importedFiles: number;
+  /** moler export files that were read */
+  readFiles: number;
   importedCalls: number;
-  /** Files that were imported before */
-  skippedFiles: number;
-  /** Files that aren't moler exports or couldn't be read */
+  /** Calls that were already in the list */
+  duplicateCalls: number;
+  /** Calls outside the selected days */
+  skippedCalls: number;
+  /** Files that aren't moler exports */
   failedFiles: string[];
 };
+
+/** Start of `from` and end of `to` as ISO timestamps, in the phone's time zone */
+function rangeBounds({ from, to }: DayRange) {
+  return {
+    start: from ? new Date(from.getFullYear(), from.getMonth(), from.getDate()).toISOString() : null,
+    end: to ? new Date(to.getFullYear(), to.getMonth(), to.getDate() + 1).toISOString() : null,
+  };
+}
+
+function isInRange(calledAt: string, { start, end }: ReturnType<typeof rangeBounds>) {
+  const time = new Date(calledAt).getTime();
+  return (start === null || time >= new Date(start).getTime()) && (end === null || time < new Date(end).getTime());
+}
 
 function unescapeXml(value: string) {
   return value
@@ -119,10 +138,17 @@ export function parseExportXml(xml: string): ParsedExport | null {
   };
 }
 
-/** Imports moler export files; files imported before are skipped, so a folder can be imported again */
-export async function importExportFiles(db: SQLiteDatabase, files: ExportFile[]): Promise<ImportResult> {
-  const result: ImportResult = { importedFiles: 0, importedCalls: 0, skippedFiles: 0, failedFiles: [] };
-  const importedAt = new Date().toISOString();
+/**
+ * Imports the calls of moler export files that fall within `range`. Files aren't remembered, so a
+ * folder can be imported again (e.g. for other days); a call already in the list is never added twice.
+ */
+export async function importExportFiles(
+  db: SQLiteDatabase,
+  files: ExportFile[],
+  range: DayRange
+): Promise<ImportResult> {
+  const result: ImportResult = { readFiles: 0, importedCalls: 0, duplicateCalls: 0, skippedCalls: 0, failedFiles: [] };
+  const bounds = rangeBounds(range);
 
   for (const file of files) {
     const parsed = parseExportXml(file.text);
@@ -130,27 +156,20 @@ export async function importExportFiles(db: SQLiteDatabase, files: ExportFile[])
       result.failedFiles.push(file.name);
       continue;
     }
+    result.readFiles += 1;
     await db.withTransactionAsync(async () => {
-      const { changes, lastInsertRowId: fileId } = await db.runAsync(
-        `INSERT OR IGNORE INTO imported_files (file_name, export_id, exported_at, exported_by, imported_at)
-         VALUES (?, ?, ?, ?, ?)`,
-        file.name,
-        parsed.exportId,
-        parsed.exportedAt,
-        parsed.exportedBy,
-        importedAt
-      );
-      if (changes === 0) {
-        result.skippedFiles += 1;
-        return;
-      }
       for (const call of parsed.calls) {
-        await db.runAsync(
-          `INSERT INTO imported_calls (file_id, source_call_id, called_at, phone, name, address, comment,
-             price_cents, call_type, duration_seconds, location, number_label, country_iso, is_video,
-             voice_message_ms, transcript)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          fileId,
+        if (!isInRange(call.calledAt, bounds)) {
+          result.skippedCalls += 1;
+          continue;
+        }
+        const { changes } = await db.runAsync(
+          `INSERT OR IGNORE INTO imported_calls (exported_by, file_name, source_call_id, called_at, phone, name,
+             address, comment, price_cents, call_type, duration_seconds, location, number_label, country_iso,
+             is_video, voice_message_ms, transcript)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          parsed.exportedBy,
+          file.name,
           call.sourceCallId,
           call.calledAt,
           call.phone,
@@ -167,9 +186,9 @@ export async function importExportFiles(db: SQLiteDatabase, files: ExportFile[])
           call.voiceMessageMs,
           call.transcript
         );
+        if (changes > 0) result.importedCalls += 1;
+        else result.duplicateCalls += 1;
       }
-      result.importedFiles += 1;
-      result.importedCalls += parsed.calls.length;
     });
   }
   return result;
@@ -195,32 +214,23 @@ type ImportedCallRow = {
   transcript: string;
 };
 
-/**
- * Imported calls, oldest first. `from` and `to` are days (any time of day): the list includes
- * calls from the start of `from` to the end of `to`, in the phone's time zone.
- */
-export async function getImportedCalls(
-  db: SQLiteDatabase,
-  { from, to }: { from: Date | null; to: Date | null }
-): Promise<ImportedCall[]> {
+/** Imported calls within `range` (whole days, the phone's time zone), oldest first */
+export async function getImportedCalls(db: SQLiteDatabase, range: DayRange): Promise<ImportedCall[]> {
+  const { start, end } = rangeBounds(range);
   const conditions: string[] = [];
   const params: string[] = [];
-  if (from) {
-    const start = new Date(from.getFullYear(), from.getMonth(), from.getDate());
-    conditions.push('imported_calls.called_at >= ?');
-    params.push(start.toISOString());
+  if (start) {
+    conditions.push('called_at >= ?');
+    params.push(start);
   }
-  if (to) {
-    const end = new Date(to.getFullYear(), to.getMonth(), to.getDate() + 1);
-    conditions.push('imported_calls.called_at < ?');
-    params.push(end.toISOString());
+  if (end) {
+    conditions.push('called_at < ?');
+    params.push(end);
   }
   const rows = await db.getAllAsync<ImportedCallRow>(
-    `SELECT imported_calls.*, imported_files.exported_by, imported_files.file_name
-     FROM imported_calls
-     JOIN imported_files ON imported_files.id = imported_calls.file_id
+    `SELECT * FROM imported_calls
      ${conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''}
-     ORDER BY imported_calls.called_at ASC, imported_files.exported_by ASC`,
+     ORDER BY called_at ASC, exported_by ASC`,
     params
   );
   return rows.map((row) => ({
@@ -244,7 +254,7 @@ export async function getImportedCalls(
   }));
 }
 
-export async function countImportedFiles(db: SQLiteDatabase): Promise<number> {
-  const row = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) AS count FROM imported_files');
+export async function countImportedCalls(db: SQLiteDatabase): Promise<number> {
+  const row = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) AS count FROM imported_calls');
   return row?.count ?? 0;
 }
