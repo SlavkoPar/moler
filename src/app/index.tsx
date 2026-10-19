@@ -42,6 +42,8 @@ import {
 import { useTheme } from '@/hooks/use-theme';
 import { confirmDestructive, showAlert } from '@/lib/alert';
 import { callDetails, capitalize, formatDateTime } from '@/lib/format';
+import { getMolersAccount, uploadCall } from '@/lib/molers-api';
+import { getStorageMode } from '@/lib/storage-mode';
 import { canPlay, readRecording, toPlayableUri } from '@/lib/voice-file';
 
 import {
@@ -84,6 +86,8 @@ export default function CallsScreen() {
   const listPlayer = useAudioPlayer(null);
   const listPlayerStatus = useAudioPlayerStatus(listPlayer);
   const [playingCallId, setPlayingCallId] = useState<number | null>(null);
+  // Calls being sent to the moler Web API right now (online mode)
+  const [uploadingIds, setUploadingIds] = useState<ReadonlySet<number>>(new Set());
   // "More..." details, usually filled from the phone's call log
   const [callType, setCallType] = useState<CallType | null>(null);
   const [duration, setDuration] = useState('');
@@ -211,6 +215,21 @@ export default function CallsScreen() {
     }
   };
 
+  /** Sends the call to the moler Web API in the background; the list shows the outcome */
+  const sendOnline = async (callId: number) => {
+    setUploadingIds((ids) => new Set(ids).add(callId));
+    try {
+      await uploadCall(db, callId, await getMolersAccount(db));
+    } finally {
+      setUploadingIds((ids) => {
+        const next = new Set(ids);
+        next.delete(callId);
+        return next;
+      });
+      await reload();
+    }
+  };
+
   const handleSave = async () => {
     if (!phone.trim() && !name.trim()) {
       showAlert('Missing caller', 'Enter a phone number or a name.');
@@ -237,7 +256,7 @@ export default function CallsScreen() {
       }
     }
 
-    await addCall(db, {
+    const callId = await addCall(db, {
       phone,
       name,
       address,
@@ -266,6 +285,8 @@ export default function CallsScreen() {
     // Clear the deep link param so the next link with the same number prefills again
     router.setParams({ caller: undefined });
     await reload();
+    // Online mode: the call is kept here and also sent to the workspace, without blocking the form
+    if ((await getStorageMode(db)) === 'online') sendOnline(callId);
   };
 
   const handleDelete = (call: PhoneCall) => {
@@ -549,6 +570,26 @@ export default function CallsScreen() {
             ✓ Exported (export #{call.exportId})
           </ThemedText>
         )}
+        {uploadingIds.has(call.id) ? (
+          <ThemedText type="small" themeColor="textSecondary">
+            ☁ Uploading…
+          </ThemedText>
+        ) : call.uploadedAt !== null ? (
+          <ThemedText type="small" themeColor="textSecondary">
+            ☁ Uploaded
+          </ThemedText>
+        ) : call.uploadError !== null ? (
+          <ThemedView type={showPerson ? 'backgroundElement' : 'background'} style={styles.uploadError}>
+            <ThemedText type="small" style={[styles.flex, styles.errorText]}>
+              ⚠ Not uploaded: {call.uploadError}
+            </ThemedText>
+            <Pressable onPress={() => sendOnline(call.id)} style={({ pressed }) => pressed && styles.pressed}>
+              <ThemedView type="backgroundSelected" style={styles.voiceButton}>
+                <ThemedText type="smallBold">Retry</ThemedText>
+              </ThemedView>
+            </Pressable>
+          </ThemedView>
+        ) : null}
         {showPerson && (
           <ThemedText type="small" themeColor="textSecondary">
             {[call.name ? call.phone : '', formatDateTime(new Date(call.calledAt))]
@@ -769,6 +810,14 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.three,
     borderRadius: Spacing.three,
+  },
+  uploadError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  errorText: {
+    color: '#E5484D',
   },
   personCalls: {
     marginTop: Spacing.two,

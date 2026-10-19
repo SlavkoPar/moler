@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 export const DATABASE_NAME = 'moler.db';
-const DATABASE_VERSION = 9;
+const DATABASE_VERSION = 10;
 
 export type Person = {
   id: number;
@@ -35,6 +35,10 @@ export type PhoneCall = {
   transcript: string;
   /** The export this call was included in; null until it has been exported */
   exportId: number | null;
+  /** When the call was sent to the moler Web API (online mode); null if it wasn't */
+  uploadedAt: string | null;
+  /** Why the last attempt to send it failed; null when it didn't fail */
+  uploadError: string | null;
 };
 
 export type VoiceMessage = {
@@ -46,7 +50,7 @@ export type VoiceMessage = {
 
 export type NewPhoneCall = Omit<
   PhoneCall,
-  'id' | 'personId' | 'hasVoice' | 'voiceDurationMs' | 'exportId'
+  'id' | 'personId' | 'hasVoice' | 'voiceDurationMs' | 'exportId' | 'uploadedAt' | 'uploadError'
 > & {
   voice?: VoiceMessage | null;
 };
@@ -80,6 +84,8 @@ type PhoneCallRow = {
   voice_duration_ms: number | null;
   transcript: string;
   export_id: number | null;
+  uploaded_at: string | null;
+  upload_error: string | null;
 };
 
 type PersonSummaryRow = Person & {
@@ -305,6 +311,15 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
     currentDbVersion = 9;
   }
 
+  if (currentDbVersion === 9) {
+    // Online mode sends each call to the moler Web API; these record whether that worked
+    await db.execAsync(`
+      ALTER TABLE calls ADD COLUMN uploaded_at TEXT;
+      ALTER TABLE calls ADD COLUMN upload_error TEXT;
+    `);
+    currentDbVersion = 10;
+  }
+
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
 }
 
@@ -377,20 +392,28 @@ function fromRow(row: PhoneCallRow): PhoneCall {
     voiceDurationMs: row.voice_duration_ms,
     transcript: row.transcript,
     exportId: row.export_id,
+    uploadedAt: row.uploaded_at,
+    uploadError: row.upload_error,
   };
 }
 
 /**
  * Calls, most recent first. `exportId` narrows the list: null for calls not exported yet,
- * a number for the calls in that export; leave it out for all calls.
+ * a number for the calls in that export; `id` returns just that call; leave both out for all calls.
  */
 export async function getCalls(
   db: SQLiteDatabase,
-  { exportId }: { exportId?: number | null } = {}
+  { exportId, id }: { exportId?: number | null; id?: number } = {}
 ): Promise<PhoneCall[]> {
   const where =
-    exportId === undefined ? '' : exportId === null ? 'WHERE calls.export_id IS NULL' : 'WHERE calls.export_id = ?';
-  const params = typeof exportId === 'number' ? [exportId] : [];
+    id !== undefined
+      ? 'WHERE calls.id = ?'
+      : exportId === undefined
+        ? ''
+        : exportId === null
+          ? 'WHERE calls.export_id IS NULL'
+          : 'WHERE calls.export_id = ?';
+  const params = id !== undefined ? [id] : typeof exportId === 'number' ? [exportId] : [];
   const rows = await db.getAllAsync<PhoneCallRow>(
     `SELECT calls.*, people.phone, people.name, people.address,
        voice_messages.call_id IS NOT NULL AS has_voice,
@@ -428,7 +451,9 @@ export async function getPeopleSummary(db: SQLiteDatabase): Promise<PersonSummar
   );
 }
 
-export async function addCall(db: SQLiteDatabase, call: NewPhoneCall) {
+/** Saves the call (and its voice message) and returns its id */
+export async function addCall(db: SQLiteDatabase, call: NewPhoneCall): Promise<number> {
+  let id = 0;
   await db.withTransactionAsync(async () => {
     const personId = await upsertPerson(db, call);
     const { lastInsertRowId: callId } = await db.runAsync(
@@ -456,7 +481,19 @@ export async function addCall(db: SQLiteDatabase, call: NewPhoneCall) {
         call.voice.durationMs
       );
     }
+    id = callId;
   });
+  return id;
+}
+
+/** Records the outcome of sending the call to the moler Web API */
+export async function setUploadResult(db: SQLiteDatabase, id: number, error: string | null) {
+  await db.runAsync(
+    'UPDATE calls SET uploaded_at = ?, upload_error = ? WHERE id = ?',
+    error === null ? new Date().toISOString() : null,
+    error,
+    id
+  );
 }
 
 export async function getVoiceMessage(db: SQLiteDatabase, callId: number): Promise<VoiceMessage | null> {

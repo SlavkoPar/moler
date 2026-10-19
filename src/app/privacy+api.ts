@@ -5,7 +5,7 @@
  */
 
 const CONTACT_EMAIL = 'slavko.parezanin@gmail.com';
-const LAST_UPDATED = '2026-10-13';
+const LAST_UPDATED = '2026-10-19';
 
 const html = `<!doctype html>
 <html lang="sr">
@@ -36,8 +36,11 @@ const html = `<!doctype html>
 
 <p>moler je aplikacija za beleženje telefonskih poziva: broj, ime, adresu, vreme, cenu, komentar, glasovnu poruku i njen tekst. Ova politika objašnjava koje podatke aplikacija koristi i gde oni idu.</p>
 
-<h2>Podaci ostaju na vašem telefonu</h2>
-<p>Svi pozivi, osobe, komentari, transkripti, glasovne poruke i izvozi čuvaju se samo u lokalnoj bazi podataka aplikacije na vašem uređaju. Aplikacija nema korisničke naloge, ne šalje podatke na naš server radi čuvanja, ne koristi analitiku ni reklame i ne prodaje niti deli podatke sa trećim stranama.</p>
+<h2>Gde se čuvaju podaci</h2>
+<p>U offline režimu (podrazumevano) svi pozivi, osobe, komentari, transkripti, glasovne poruke i izvozi čuvaju se samo u lokalnoj bazi podataka aplikacije na vašem uređaju. Podaci se šalju na server radi čuvanja samo ako sami uključite online režim (vidi ispod). Aplikacija ne koristi analitiku ni reklame i ne prodaje niti deli podatke sa trećim stranama.</p>
+
+<h2>Online režim (radni prostor)</h2>
+<p>U Podešavanjima možete izabrati online režim. Tada se svaki sačuvan poziv (broj, ime, adresa, vreme, cena, komentar, detalji poziva, transkript i glasovna poruka) šalje preko HTTPS-a na moler servis (molers.onrender.com) u radni prostor koji ste registrovali, gde ga vide korisnici tog radnog prostora. Poziv ostaje sačuvan i na telefonu. U offline režimu (podrazumevano) ništa se ne šalje.</p>
 
 <h2>Mikrofon i pretvaranje govora u tekst</h2>
 <p>Mikrofon se koristi samo kada sami pokrenete snimanje glasovne poruke ili diktiranje. Snimak se čuva na telefonu.</p>
@@ -74,8 +77,11 @@ const html = `<!doctype html>
 
 <p>moler is an app for logging phone calls: number, name, address, time, price, comment, a voice message and its text. This policy explains which data the app uses and where it goes.</p>
 
-<h2>Your data stays on your phone</h2>
-<p>All calls, people, comments, transcripts, voice messages and exports are stored only in the app's local database on your device. The app has no user accounts, does not send data to our server for storage, uses no analytics or ads, and does not sell or share data with third parties.</p>
+<h2>Where your data is stored</h2>
+<p>In offline mode (the default) all calls, people, comments, transcripts, voice messages and exports are stored only in the app's local database on your device. Data is sent to a server for storage only if you turn on online mode yourself (see below). The app uses no analytics or ads, and does not sell or share data with third parties.</p>
+
+<h2>Online mode (workspace)</h2>
+<p>In Settings you can choose online mode. Each saved call (number, name, address, time, price, comment, call details, transcript and voice message) is then sent over HTTPS to the moler service (molers.onrender.com), into the workspace you registered, where the users of that workspace can see it. The call is also kept on the phone. In offline mode (the default) nothing is sent.</p>
 
 <h2>Microphone and speech-to-text</h2>
 <p>The microphone is used only when you start recording a voice message or dictating. The recording is stored on your phone.</p>
