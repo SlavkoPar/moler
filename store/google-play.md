@@ -43,7 +43,9 @@ Privacy policy URL: **https://moler.expo.app/privacy**
 >
 > Izvoz u XML: jednim dodirom izvezite sve nove pozive i pošaljite fajl mejlom ili sačuvajte na Drive; kopija ostaje i u folderu Download/moler. Izvezeni pozivi se označe, tako da sledeći izvoz sadrži samo nove. Svaki raniji izvoz možete ponovo otvoriti i podeliti.
 >
-> Privatnost: svi podaci ostaju na vašem telefonu. Nema naloga, reklama ni analitike. Glasovna poruka se šalje na pretvaranje u tekst samo kada telefon nema sopstveni servis za prepoznavanje govora.
+> Offline ili online: podrazumevano svi podaci ostaju na vašem telefonu. Za timove, u Podešavanjima uključite online režim i pozivi se šalju i u zajednički radni prostor (registracija na molers.onrender.com).
+>
+> Privatnost: bez reklama i analitike. Glasovna poruka se šalje na pretvaranje u tekst samo kada telefon nema sopstveni servis za prepoznavanje govora.
 
 ## Store listing – English (en-US)
 
@@ -65,7 +67,9 @@ Privacy policy URL: **https://moler.expo.app/privacy**
 >
 > XML export: export all new calls with one tap and e-mail the file or save it to Drive; a copy is also kept in the Download/moler folder. Exported calls are marked, so the next export contains only new ones. Any earlier export can be opened and shared again.
 >
-> Privacy: all data stays on your phone. No accounts, ads or analytics. A voice message is sent for transcription only when the phone has no speech recognition service of its own.
+> Offline or online: by default all data stays on your phone. For teams, turn on online mode in Settings and calls are also sent to a shared workspace (register at molers.onrender.com).
+>
+> Privacy: no ads or analytics. A voice message is sent for transcription only when the phone has no speech recognition service of its own.
 
 ---
 
@@ -113,17 +117,22 @@ Play needs at least 2 phone screenshots (portrait, e.g. 1080×1920 or the phone'
 
 **Is all of the user data collected by your app encrypted in transit?** → **Yes** (HTTPS)
 
-**Do you provide a way for users to request that their data is deleted?** → **Yes** (data is only on the device; uninstalling or "Clear data" deletes it). Leave the deletion URL empty unless Play insists; then use the privacy policy URL.
+**Do you provide a way for users to request that their data is deleted?** → **Yes**. Offline data is only on the device (uninstall or "Clear data" deletes it); calls uploaded in online mode are deleted in the workspace on molers.onrender.com or on request to slavko.parezanin@gmail.com. Use the privacy policy URL if Play asks for a deletion link.
 
-Data types – declare only this one:
+Online mode (Settings → Online) uploads each saved call to the developer's own server (molers.onrender.com). It is optional and off by default, so every type below is **Optional**. Data sent to your own server counts as **Collected**, not Shared.
 
 | Data type | Collected | Shared | Processed ephemerally | Required/optional | Purpose |
 |---|---|---|---|---|---|
-| **Audio → Voice or sound recordings** | Yes | Yes (Google Cloud Speech-to-Text, as service provider) | **Yes** | Optional (only when the user records) | App functionality |
+| **Personal info → Name** (caller's name) | Yes | No | No | Optional (online mode) | App functionality |
+| **Personal info → Phone number** (caller's number) | Yes | No | No | Optional (online mode) | App functionality |
+| **Personal info → Address** (caller's address) | Yes | No | No | Optional (online mode) | App functionality |
+| **Calls and SMS → Call logs** (time, type, duration from "Use last call") | Yes | No | No | Optional (online mode) | App functionality |
+| **Audio → Voice or sound recordings** | Yes | Yes (Google Cloud Speech-to-Text, as service provider, for transcription) | No (stored in the workspace in online mode) | Optional | App functionality |
+| **App activity → Other user-generated content** (comments, transcripts, prices) | Yes | No | No | Optional (online mode) | App functionality |
 
-Why only this one: Google counts data as "collected" only when it leaves the device. Calls, contacts' names/numbers, comments and the call log stay in the local database and are never sent, so they are not declared. The voice recording leaves the device only for transcription on phones without a speech service, and is not stored.
+Why: Google counts data as "collected" when it leaves the device. In offline mode (the default) nothing above is uploaded except voice recordings sent for transcription on phones without a speech service, which are not stored. In online mode the whole call, including the voice message, is stored in the user's workspace on the molers server.
 
-> Note: transfers to a **service provider** that processes data on your behalf are allowed to be declared as not "shared". If you prefer the safer answer, keep **Shared: Yes** as in the table.
+> Note: transfers to a **service provider** that processes data on your behalf (Google Cloud Speech-to-Text) may be declared as not "shared". If you prefer the safer answer, keep **Shared: Yes** as in the table.
 
 ---
 
