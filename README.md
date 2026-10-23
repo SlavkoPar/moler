@@ -1,6 +1,24 @@
-# Welcome to your Expo app 👋
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+
+## Screenshots
+
+### Mobile app
+
+<p>
+  <img src="assets/images/OnREADME/viber_image_2026-10-20_10-50-27-783.jpg" alt="Log a call: phone, name, address, time, comment and voice message" width="300" />
+  <img src="assets/images/OnREADME/viber_image_2026-10-20_10-54-49-371.jpg" alt="Saved call uploaded to the workspace, with transcript" width="300" />
+</p>
+
+### Online workspace at [molers.onrender.com](https://molers.onrender.com)
+
+Calls list:
+
+<img src="assets/images/OnREADME/Molers1.png" alt="Calls list on molers.onrender.com" width="700" />
+
+A call with its voice message and transcript:
+
+<img src="assets/images/OnREADME/Molers2.png" alt="Call details with voice message and transcript on molers.onrender.com" width="700" />
 
 ## Get started
 
